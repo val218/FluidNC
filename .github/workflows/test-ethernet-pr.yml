@@ -1,0 +1,36 @@
+name: Test build - Ethernet PR
+
+on:
+  push:
+    branches: [ test-ethernet-pr ]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [ wifi_s3, wifi, noradio_s3, noradio, bt ]
+        ref: [ pr, main ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Switch to upstream main for comparison
+        if: matrix.ref == 'main'
+        run: |
+          git remote add up https://github.com/bdring/FluidNC.git
+          git fetch -q up main
+          git checkout -q up/main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install --upgrade platformio
+      - name: Build ${{ matrix.env }} (${{ matrix.ref }})
+        shell: bash
+        run: |
+          set +e
+          pio run -e ${{ matrix.env }} > build.log 2>&1; rc=$?
+          grep -E "error:|undefined reference|multiple definition" build.log | head -8 | sed 's/^/::warning::/'
+          tail -5 build.log
+          exit $rc
